@@ -14,7 +14,8 @@ namespace Contoso.Function
             databaseName: "contoso-movies",
             collectionName: "MergedOrders",
             ConnectionStringSetting = "contosodb_DOCUMENTDB",
-            LeaseCollectionName = "leases")]IReadOnlyList<Document> input,
+            LeaseCollectionName = "leases",
+            CreateLeaseCollectionIfNotExists =true)]IReadOnlyList<Document> input,
             ILogger log)
         {
             if (input != null && input.Count > 0)
