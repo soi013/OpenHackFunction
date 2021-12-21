@@ -1,0 +1,8 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=consotostrage;AccountKey=TwXd6jYIlwHrDuET5q9RI7G74aXzXM2lg++YCA+fA1eb4LD+obaYaRQy2b6tVIcdNbqkB6hUVyBQG79/zBrzew==;EndpointSuffix=core.windows.net",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "contosodb_DOCUMENTDB": "AccountEndpoint=https://contoso-db.documents.azure.com:443/;AccountKey=tGkmlAsfIe6XPu8ZIU9Z76j75sT6VU5gBYhypIZWMqYwJMjAJT8UMGXgn169oIo0bcGws0jUg0FDae389Mwdrg==;"
+  }
+}
