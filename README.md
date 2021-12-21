@@ -1,1 +1,3 @@
 # OpenHackFunction
+
+for Azure Functions
