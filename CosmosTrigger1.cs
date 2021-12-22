@@ -13,7 +13,6 @@ namespace Contoso.Function
     {
         private const string outputCollection = "PopularMovies";
         private const string inputCollection = "MergedOrders";
-        private const string workCollection = "CountedProductId";
         private const string targetDataBase = "contoso-movies";
         private const string endpointUrl = "https://contoso-db.documents.azure.com:443/";
         private const string authorizationKey = "tGkmlAsfIe6XPu8ZIU9Z76j75sT6VU5gBYhypIZWMqYwJMjAJT8UMGXgn169oIo0bcGws0jUg0FDae389Mwdrg==";
@@ -67,9 +66,6 @@ GROUP BY c.ProductId";
             CosmosClient inputCosmosClient = new CosmosClient(endpointUrl, authorizationKey);
             var inputContainer = inputCosmosClient.GetContainer(targetDataBase, inputCollection);
 
-            CosmosClient workCosmosClient = new CosmosClient(endpointUrl, authorizationKey);
-            var workContainer = workCosmosClient.GetContainer(targetDataBase, workCollection);
-
             QueryDefinition queryDefinition = new QueryDefinition(sqlQueryText1);
             var feedIterator = inputContainer.GetItemQueryIterator<WorkItem>(queryDefinition);
 
@@ -90,20 +86,24 @@ GROUP BY c.ProductId";
 
             var guid = Guid.NewGuid();
             var calcTime = DateTime.UtcNow;
-            var topMovies = workList.OrderByDescending(x => x.ProductIdcount)
-            .Take(10)
-            .Select((x, i) => new MovieRankItem
-            (
-                ProductId: x.ProductId,
-                ProductIdcount: x.ProductIdcount,
-                MovieTitle: "HOGE",
-                Rank: i + 1,
-                Guid: guid,
-                CalcTime: calcTime
-            ));
+            var topMovies = workList
+                .OrderByDescending(x => x.ProductIdcount)
+                .Take(10)
+                .Select((x, i) => new MovieRankItem
+                (
+                    ProductId: x.ProductId,
+                    ProductIdcount: x.ProductIdcount,
+                    MovieTitle: "HOGE",
+                    Rank: i + 1,
+                    Guid: guid,
+                    CalcTime: calcTime
+                ));
 
             foreach (var item in topMovies)
+            {
+                log.LogInformation($"add = {item}");
                 await myDestinationCollection.AddAsync(item);
+            }
         }
     }
 
