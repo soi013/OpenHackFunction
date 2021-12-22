@@ -15,14 +15,28 @@ namespace Contoso.Function
             collectionName: "MergedOrders",
             ConnectionStringSetting = "contosodb_DOCUMENTDB",
             LeaseCollectionName = "leases",
-            CreateLeaseCollectionIfNotExists = true)]IReadOnlyList<Document> input,
+            CreateLeaseCollectionIfNotExists = true)]
+            IReadOnlyList<Document> input,
+            [CosmosDB(
+            databaseName: "contoso-movies",
+            collectionName: "PopularMovies",
+            ConnectionStringSetting = "contosodb_DOCUMENTDB")]
+            out dynamic document,
             ILogger log)
         {
-            if (input != null && input.Count > 0)
+            if (input == null || input.Count <= 0)
             {
-                log.LogInformation("Documents modified " + input.Count);
-                log.LogInformation("First document Id " + input[0].Id);
+                document = null;
+                return;
             }
+
+            log.LogInformation("Documents modified " + input.Count);
+            log.LogInformation("First document Id " + input[0].Id);
+
+            string queueMessage = input[0].Id;
+            document = new { Description = queueMessage, id = Guid.NewGuid() };
+
+            log.LogInformation($"Description={queueMessage}");
         }
     }
 }
