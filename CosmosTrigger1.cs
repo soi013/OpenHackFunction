@@ -5,6 +5,7 @@ using Microsoft.Azure.Documents;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Azure.Cosmos;
+using System.Linq;
 
 namespace Contoso.Function
 {
@@ -41,17 +42,17 @@ namespace Contoso.Function
             log.LogInformation("First document Id " + input[0].Id);
 
             CosmosClient cosmosClient = new CosmosClient(endpointUrl, authorizationKey);
-            QueryItems(cosmosClient);
+            QueryItems(cosmosClient, log);
 
             string queueMessage = input[0].Id;
             document = new { Description = queueMessage, id = Guid.NewGuid() };
 
             log.LogInformation($"Description={queueMessage}");
         }
-        private static async void QueryItems(CosmosClient cosmosClient)
+        private static async Task QueryItems(CosmosClient cosmosClient, ILogger log)
         {
             //MergedOrdersの中から、人気順でTop10のProduct IDを取得するクエリ
-            var sqlQueryText1 = "SELECT * FROM c";
+            var sqlQueryText1 = "SELECT TOP 10 * FROM c";
 
             //10個のProductIDからItemsの結果を取得してランクを付けるクエリ
             var sqlQueryText2 = "SELECT * FROM c WHERE c.LastName = 'Andersen'";
@@ -61,12 +62,15 @@ namespace Contoso.Function
             var container = cosmosClient.GetContainer(targetDataBase, inputCollection);
 
             QueryDefinition queryDefinition = new QueryDefinition(sqlQueryText1);
-            FeedIterator<dynamic> orders = container.GetItemQueryIterator<dynamic>(queryDefinition);
-
-            // await foreach (dynamic item in container.GetItemQueryIterator<dynamic>(queryDefinition))
-            // {
-            //     log.LogInformation(item);
-            // }
+            FeedIterator<dynamic> feedIterator = container.GetItemQueryIterator<dynamic>(queryDefinition);
+            while (feedIterator.HasMoreResults)
+            {
+                FeedResponse<dynamic> response = await feedIterator.ReadNextAsync();
+                foreach (var item in response)
+                {
+                    log.LogInformation($"{item}");
+                }
+            }
         }
     }
 }
