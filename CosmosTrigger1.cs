@@ -30,7 +30,7 @@ namespace Contoso.Function
             databaseName: targetDataBase,
             collectionName: outputCollection,
             ConnectionStringSetting = "contosodb_DOCUMENTDB")]
-            IAsyncCollector<WorkItem> myDestinationQueue,
+            IAsyncCollector<MovieRankItem> myDestinationCollection,
             // out dynamic document,            
             ILogger log)
         {
@@ -43,14 +43,14 @@ namespace Contoso.Function
             log.LogInformation("Documents modified " + input.Count);
             log.LogInformation("First document Id " + input[0].Id);
 
-            await QueryItems(log, myDestinationQueue);
+            await QueryItems(log, myDestinationCollection);
 
             string queueMessage = input[0].Id;
             // document = new { Description = queueMessage, id = Guid.NewGuid() };
 
             log.LogInformation($"Description={queueMessage}");
         }
-        private static async Task QueryItems(ILogger log, IAsyncCollector<WorkItem> myDestinationQueue)
+        private static async Task QueryItems(ILogger log, IAsyncCollector<MovieRankItem> myDestinationCollection)
         {
             //MergedOrdersの中から、人気順でTop10のProduct IDを取得するクエリ
             var sqlQueryText1 = @"
@@ -72,20 +72,37 @@ GROUP BY c.ProductId";
 
             QueryDefinition queryDefinition = new QueryDefinition(sqlQueryText1);
             var feedIterator = inputContainer.GetItemQueryIterator<WorkItem>(queryDefinition);
+
+            var workList = new List<WorkItem>();
+
             while (feedIterator.HasMoreResults)
             {
                 FeedResponse<WorkItem> response = await feedIterator.ReadNextAsync();
                 foreach (var item in response)
                 {
                     log.LogInformation($"items = {item}");
+                    workList.Add(item);
                     //なぜか書き込めない。
                     // var responseUpsert = await workContainer.UpsertItemAsync(item, new Microsoft.Azure.Cosmos.PartitionKey(item.ProductId));
                     // log.LogInformation($"response = {responseUpsert}");
-                    // myDestinationQueue.AddAsync()
                 }
             }
+
+            var topMovies = workList.OrderByDescending(x => x.ProductIdcount)
+            .Take(10)
+            .Select((x, i) => new MovieRankItem
+            (
+                ProductId: x.ProductId,
+                ProductIdcount: x.ProductIdcount,
+                MovieTitle: "HOGE",
+                Rank: i
+            ));
+
+            foreach (var item in topMovies)
+                await myDestinationCollection.AddAsync(item);
         }
     }
 
     public record WorkItem(string ProductId, int ProductIdcount);
+    public record MovieRankItem(string ProductId, int ProductIdcount, string MovieTitle, int Rank);
 }
