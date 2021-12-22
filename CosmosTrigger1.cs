@@ -88,6 +88,8 @@ GROUP BY c.ProductId";
                 }
             }
 
+            var guid = Guid.NewGuid();
+            var calcTime = DateTime.UtcNow;
             var topMovies = workList.OrderByDescending(x => x.ProductIdcount)
             .Take(10)
             .Select((x, i) => new MovieRankItem
@@ -95,7 +97,9 @@ GROUP BY c.ProductId";
                 ProductId: x.ProductId,
                 ProductIdcount: x.ProductIdcount,
                 MovieTitle: "HOGE",
-                Rank: i
+                Rank: i + 1,
+                Guid: guid,
+                CalcTime: calcTime
             ));
 
             foreach (var item in topMovies)
@@ -104,5 +108,5 @@ GROUP BY c.ProductId";
     }
 
     public record WorkItem(string ProductId, int ProductIdcount);
-    public record MovieRankItem(string ProductId, int ProductIdcount, string MovieTitle, int Rank);
+    public record MovieRankItem(string ProductId, int ProductIdcount, string MovieTitle, int Rank, Guid Guid, DateTime CalcTime);
 }
