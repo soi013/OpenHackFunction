@@ -13,12 +13,13 @@ namespace Contoso.Function
     {
         private const string outputCollection = "PopularMovies";
         private const string inputCollection = "MergedOrders";
+        private const string workCollection = "CountedProductId";
         private const string targetDataBase = "contoso-movies";
         private const string endpointUrl = "https://contoso-db.documents.azure.com:443/";
         private const string authorizationKey = "tGkmlAsfIe6XPu8ZIU9Z76j75sT6VU5gBYhypIZWMqYwJMjAJT8UMGXgn169oIo0bcGws0jUg0FDae389Mwdrg==";
 
         [FunctionName("CosmosTrigger1")]
-        public static void Run([CosmosDBTrigger(
+        public static async Task RunAsync([CosmosDBTrigger(
             databaseName: targetDataBase,
             collectionName: inputCollection,
             ConnectionStringSetting = "contosodb_DOCUMENTDB",
@@ -29,48 +30,62 @@ namespace Contoso.Function
             databaseName: targetDataBase,
             collectionName: outputCollection,
             ConnectionStringSetting = "contosodb_DOCUMENTDB")]
-            out dynamic document,
+            IAsyncCollector<WorkItem> myDestinationQueue,
+            // out dynamic document,            
             ILogger log)
         {
             if (input == null || input.Count <= 0)
             {
-                document = null;
+                // document = null;
                 return;
             }
 
             log.LogInformation("Documents modified " + input.Count);
             log.LogInformation("First document Id " + input[0].Id);
 
-            CosmosClient cosmosClient = new CosmosClient(endpointUrl, authorizationKey);
-            QueryItems(cosmosClient, log);
+            await QueryItems(log, myDestinationQueue);
 
             string queueMessage = input[0].Id;
-            document = new { Description = queueMessage, id = Guid.NewGuid() };
+            // document = new { Description = queueMessage, id = Guid.NewGuid() };
 
             log.LogInformation($"Description={queueMessage}");
         }
-        private static async Task QueryItems(CosmosClient cosmosClient, ILogger log)
+        private static async Task QueryItems(ILogger log, IAsyncCollector<WorkItem> myDestinationQueue)
         {
             //MergedOrdersの中から、人気順でTop10のProduct IDを取得するクエリ
-            var sqlQueryText1 = "SELECT TOP 10 * FROM c";
+            var sqlQueryText1 = @"
+SELECT count(1) AS ProductIdcount,c.ProductId
+FROM MergedOrders m
+JOIN c IN m.Details
+GROUP BY c.ProductId";
 
             //10個のProductIDからItemsの結果を取得してランクを付けるクエリ
             var sqlQueryText2 = "SELECT * FROM c WHERE c.LastName = 'Andersen'";
 
             Console.WriteLine("Running query: {0}\n", sqlQueryText1);
 
-            var container = cosmosClient.GetContainer(targetDataBase, inputCollection);
+            CosmosClient inputCosmosClient = new CosmosClient(endpointUrl, authorizationKey);
+            var inputContainer = inputCosmosClient.GetContainer(targetDataBase, inputCollection);
+
+            CosmosClient workCosmosClient = new CosmosClient(endpointUrl, authorizationKey);
+            var workContainer = workCosmosClient.GetContainer(targetDataBase, workCollection);
 
             QueryDefinition queryDefinition = new QueryDefinition(sqlQueryText1);
-            FeedIterator<dynamic> feedIterator = container.GetItemQueryIterator<dynamic>(queryDefinition);
+            var feedIterator = inputContainer.GetItemQueryIterator<WorkItem>(queryDefinition);
             while (feedIterator.HasMoreResults)
             {
-                FeedResponse<dynamic> response = await feedIterator.ReadNextAsync();
+                FeedResponse<WorkItem> response = await feedIterator.ReadNextAsync();
                 foreach (var item in response)
                 {
-                    log.LogInformation($"{item}");
+                    log.LogInformation($"items = {item}");
+                    //なぜか書き込めない。
+                    // var responseUpsert = await workContainer.UpsertItemAsync(item, new Microsoft.Azure.Cosmos.PartitionKey(item.ProductId));
+                    // log.LogInformation($"response = {responseUpsert}");
+                    // myDestinationQueue.AddAsync()
                 }
             }
         }
     }
+
+    public record WorkItem(string ProductId, int ProductIdcount);
 }
