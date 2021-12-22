@@ -69,10 +69,23 @@ GROUP BY c.ProductId";
             var calcTime = DateTime.UtcNow;
             var subInputContainer = inputCosmosClient.GetContainer(targetDataBase, subInputCollection);
 
-            var topMovies = await Task.WhenAll(workList
-                .OrderByDescending(x => x.ProductIdcount)
-                .Take(10)
-                .Select(async (x, i) => await CreateMovieRank(x, i, guid, calcTime, log, subInputContainer)));
+            var topWorkItems = workList
+                            .OrderByDescending(x => x.ProductIdcount)
+                            .Take(10)
+                            .ToArray();
+
+            string targetIds = string.Join(",", topWorkItems.Select(x => x.ProductId));
+            string querySub = @$"
+SELECT TOP 10 c.ItemId,c.ProductName,c.Category, c.CategoryId From c
+WHERE c.ItemId in ({targetIds})";
+
+            var movies = await GetItemsFromContainer<MovieItem>(log, querySub, subInputContainer);
+
+            var topMovies = topWorkItems
+            .Join(movies, x => x.ProductId, y => y.ItemId,
+                (x, y) =>
+                 new MovieRankItem(x.ProductId, x.ProductIdcount, y.ProductName, 0, guid, calcTime))
+            .Select((a, i) => a with { Rank = i + 1 });
 
             foreach (var item in topMovies)
             {
@@ -99,25 +112,6 @@ GROUP BY c.ProductId";
             }
 
             return workList;
-        }
-
-        private static async Task<MovieRankItem> CreateMovieRank(WorkItem x, int i, Guid guid, DateTime calcTime, ILogger log, Container inputContainer)
-        {
-            //10個のProductIDからItemsの結果を取得してランクを付けるクエリ
-            var sqlQueryText2 = @$"SELECT TOP 1 * From c WHERE c.ItemId = {x.ProductId}";
-
-            var movies = await GetItemsFromContainer<MovieItem>(log, sqlQueryText2, inputContainer);
-            var title = movies.FirstOrDefault()?.ProductName ?? "Unknown Title";
-
-            return new MovieRankItem
-                    (
-                        ProductId: x.ProductId,
-                        ProductIdcount: x.ProductIdcount,
-                        MovieTitle: title,
-                        Rank: i + 1,
-                        Guid: guid,
-                        CalcTime: calcTime
-                    );
         }
     }
 
